@@ -610,14 +610,67 @@ fn finish(cv: &mut ContentView, d: TextDraft, added: &[Added]) -> Option<Edit> {
 pub(crate) fn format_panel(ui: &mut egui::Ui, t: &Tokens, style: &AddedText) -> Option<AddedText> {
     let mut s = style.clone();
     widgets::section_title(ui, tl!("Format text"));
+    let is_thai = s.text.chars().any(|c| ('\u{0E01}'..='\u{0E7F}').contains(&c));
+    let font_choice_id = ui.make_persistent_id("format_panel_font_choice");
+    #[cfg(not(target_arch = "wasm32"))]
+    let active_thai = pdfcraft_fonts::active_thai_font_entry().map(|e| e.name);
+    #[cfg(target_arch = "wasm32")]
+    let active_thai: Option<String> = None;
+
+    let current_font_name = if is_thai {
+        active_thai.clone().unwrap_or_else(|| "Courier MonoThai".to_string())
+    } else if let Some(saved) = ui.data(|d| d.get_temp::<String>(font_choice_id)) {
+        if [FontFamily::Helvetica.label(), FontFamily::Times.label(), FontFamily::Courier.label()].contains(&saved.as_str()) {
+            s.family.label().to_string()
+        } else if active_thai.as_ref() == Some(&saved) {
+            saved
+        } else {
+            s.family.label().to_string()
+        }
+    } else {
+        s.family.label().to_string()
+    };
+
+    let mut font_changed = false;
+
     ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt("font-family").selected_text(s.family.label()).width(110.0).show_ui(ui, |ui| {
-            for f in [FontFamily::Helvetica, FontFamily::Times, FontFamily::Courier] {
-                ui.selectable_value(&mut s.family, f, f.label());
-            }
-        });
+        egui::ComboBox::from_id_salt("font-family")
+            .selected_text(&current_font_name)
+            .width(135.0)
+            .show_ui(ui, |ui| {
+                ui.label(egui::RichText::new(tl!("Standard fonts")).small().color(t.text_muted));
+                for f in [FontFamily::Helvetica, FontFamily::Times, FontFamily::Courier] {
+                    let selected = current_font_name == f.label();
+                    if ui.selectable_label(selected, f.label()).clicked() {
+                        s.family = f;
+                        ui.data_mut(|d| d.insert_temp(font_choice_id, f.label().to_string()));
+                        font_changed = true;
+                    }
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let thai_fonts = pdfcraft_fonts::available_thai_fonts();
+                    if !thai_fonts.is_empty() {
+                        ui.separator();
+                        ui.label(egui::RichText::new(tl!("Thai fonts")).small().color(t.text_muted));
+                        for entry in &thai_fonts {
+                            let selected = current_font_name == entry.name;
+                            if ui.selectable_label(selected, &entry.name).clicked() {
+                                if pdfcraft_fonts::set_active_thai_font_by_path(&entry.path).is_ok() {
+                                    ui.ctx().set_fonts(crate::theme::installed_font_definitions(crate::theme::CjkPreference::Default));
+                                }
+                                if entry.family.eq_ignore_ascii_case("Courier MonoThai") {
+                                    s.family = FontFamily::Courier;
+                                }
+                                ui.data_mut(|d| d.insert_temp(font_choice_id, entry.name.clone()));
+                                font_changed = true;
+                            }
+                        }
+                    }
+                }
+            });
         // A list rather than a drag value: every change is an undo step.
-        egui::ComboBox::from_id_salt("font-size").selected_text(format!("{} pt", s.size)).width(70.0).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("font-size").selected_text(format!("{} pt", s.size)).width(65.0).show_ui(ui, |ui| {
             for size in [8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 24.0, 28.0, 36.0, 48.0, 72.0] {
                 ui.selectable_value(&mut s.size, size, format!("{size} pt"));
             }
@@ -646,36 +699,7 @@ pub(crate) fn format_panel(ui: &mut egui::Ui, t: &Tokens, style: &AddedText) -> 
     if let Some(picked) = crate::comments::swatch_grid(ui, Some(c)) {
         s.color = picked;
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let thai_fonts = pdfcraft_fonts::available_thai_fonts();
-        if !thai_fonts.is_empty() {
-            ui.add_space(2.0);
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(tl!("Thai font:")).small().color(t.text_muted));
-                let current_title = pdfcraft_fonts::active_thai_font_entry()
-                    .map(|e| e.name)
-                    .unwrap_or_else(|| "Courier MonoThai".to_string());
-                egui::ComboBox::from_id_salt("thai-font-selector")
-                    .selected_text(current_title)
-                    .width(160.0)
-                    .show_ui(ui, |ui| {
-                        for entry in &thai_fonts {
-                            let selected = pdfcraft_fonts::active_thai_font_entry()
-                                .as_ref()
-                                .is_some_and(|curr| curr.file_name.eq_ignore_ascii_case(&entry.file_name));
-                            if ui.selectable_label(selected, &entry.name).clicked() {
-                                if pdfcraft_fonts::set_active_thai_font_by_path(&entry.path).is_ok() {
-                                    ui.ctx().set_fonts(crate::theme::installed_font_definitions(crate::theme::CjkPreference::Default));
-                                }
-                            }
-                        }
-                    });
-            });
-        }
-    }
-    ui.label(egui::RichText::new(tl!("Thai and Arabic use regular fallback fonts when available.")).small().color(t.text_faint));
-    (s != *style).then_some(s)
+    (font_changed || s != *style).then_some(s)
 }
 
 /// How to use the tools, under the Add content list.
