@@ -82,7 +82,7 @@
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="PdfCraft">
         <Directory Id="ModelsFolder" Name="models" />
-        <Directory Id="FontsFolder" Name="fonts" />
+        <Directory Id="PdfcraftFontsFolder" Name="fonts" />
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder" />
@@ -228,7 +228,7 @@
     </ComponentGroup>
 
     <!-- Bundled fonts folder (including Thai TrueType fonts and Courier MonoThai) -->
-    <ComponentGroup Id="PdfcraftFonts" Directory="FontsFolder">
+    <ComponentGroup Id="PdfcraftFonts" Directory="PdfcraftFontsFolder">
       <Files Include="$(var.FontsDir)\*" />
     </ComponentGroup>
   </Fragment>
