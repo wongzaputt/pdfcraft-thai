@@ -646,6 +646,34 @@ pub(crate) fn format_panel(ui: &mut egui::Ui, t: &Tokens, style: &AddedText) -> 
     if let Some(picked) = crate::comments::swatch_grid(ui, Some(c)) {
         s.color = picked;
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let thai_fonts = pdfcraft_fonts::available_thai_fonts();
+        if !thai_fonts.is_empty() {
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(tl!("Thai font:")).small().color(t.text_muted));
+                let current_title = pdfcraft_fonts::active_thai_font_entry()
+                    .map(|e| e.name)
+                    .unwrap_or_else(|| "Courier MonoThai".to_string());
+                egui::ComboBox::from_id_salt("thai-font-selector")
+                    .selected_text(current_title)
+                    .width(160.0)
+                    .show_ui(ui, |ui| {
+                        for entry in &thai_fonts {
+                            let selected = pdfcraft_fonts::active_thai_font_entry()
+                                .as_ref()
+                                .is_some_and(|curr| curr.file_name.eq_ignore_ascii_case(&entry.file_name));
+                            if ui.selectable_label(selected, &entry.name).clicked() {
+                                if pdfcraft_fonts::set_active_thai_font_by_path(&entry.path).is_ok() {
+                                    ui.ctx().set_fonts(crate::theme::installed_font_definitions(crate::theme::CjkPreference::Default));
+                                }
+                            }
+                        }
+                    });
+            });
+        }
+    }
     ui.label(egui::RichText::new(tl!("Thai and Arabic use regular fallback fonts when available.")).small().color(t.text_faint));
     (s != *style).then_some(s)
 }
