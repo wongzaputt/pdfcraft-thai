@@ -73,10 +73,10 @@ kurbo = "0.13"
 proptest = "1"
 
 # ui
-egui = "0.36"
-egui_extras = { version = "0.36", default-features = false, features = ["svg"] }
-eframe = { version = "0.36", default-features = false }
-egui_kittest = "0.36"
+egui = "0.37"
+egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
+eframe = { version = "0.37", default-features = false }
+egui_kittest = "0.37"
 rfd = "0.17"
 
 [workspace.lints.rust]
